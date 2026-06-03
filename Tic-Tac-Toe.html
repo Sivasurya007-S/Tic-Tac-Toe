@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic-Tac-Toe Advanced</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c26;
+    --border: #2a2a3a;
+    --accent: #7c6fff;
+    --accent2: #ff6f9c;
+    --x-color: #7c6fff;
+    --o-color: #ff6f9c;
+    --text: #e8e8f0;
+    --muted: #666688;
+    --win-glow: rgba(124,111,255,0.18);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 20% 20%, rgba(124,111,255,0.07) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 80% 80%, rgba(255,111,156,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .app { width: 100%; max-width: 900px; padding: 2rem 1rem; }
+
+  /* HEADER */
+  .header { text-align: center; margin-bottom: 2.5rem; }
+  .header h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .header p { color: var(--muted); font-size: 0.85rem; font-family: 'Space Mono', monospace; margin-top: 4px; }
+
+  /* SCORE BOARD */
+  .scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin-bottom: 2rem; align-items: center; }
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    position: relative;
+    transition: border-color 0.3s;
+  }
+  .score-card.active-turn { border-color: var(--accent); box-shadow: 0 0 20px rgba(124,111,255,0.15); }
+  .score-card.active-turn.o-active { border-color: var(--accent2); box-shadow: 0 0 20px rgba(255,111,156,0.15); }
+  .score-card .player-sym { font-size: 2rem; font-weight: 800; }
+  .score-card.x-card .player-sym { color: var(--x-color); }
+  .score-card.o-card .player-sym { color: var(--o-color); }
+  .score-card .player-name { font-size: 0.75rem; color: var(--muted); font-family: 'Space Mono', monospace; margin: 2px 0; }
+  .score-card .score-num { font-size: 2rem; font-weight: 800; }
+  .draw-card { text-align: center; }
+  .draw-card .draw-label { font-size: 0.7rem; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .draw-card .draw-num { font-size: 1.5rem; font-weight: 800; color: var(--muted); }
+
+  /* TURN INDICATOR */
+  .turn-banner {
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 1.2rem;
+    min-height: 22px;
+    transition: color 0.3s;
+  }
+  .turn-banner span { font-weight: 700; }
+  .turn-banner .tx { color: var(--x-color); }
+  .turn-banner .to { color: var(--o-color); }
+
+  /* BOARD */
+  .board-wrap { display: flex; justify-content: center; margin-bottom: 1.8rem; }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: min(360px, 90vw);
+  }
+  .cell {
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    font-size: clamp(2rem, 8vw, 3.2rem);
+    font-weight: 800;
+    font-family: 'Syne', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center;
+    color: transparent;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .cell:hover:not(.taken):not(.disabled) {
+    background: var(--surface2);
+    border-color: #3a3a5a;
+    transform: scale(1.03);
+  }
+  .cell.taken, .cell.disabled { cursor: default; }
+  .cell.x-mark { color: var(--x-color); }
+  .cell.o-mark { color: var(--o-color); }
+  .cell.winner {
+    background: var(--win-glow);
+    border-color: var(--accent);
+    animation: pulse-win 0.6s ease forwards;
+  }
+  .cell.winner.o-win { background: rgba(255,111,156,0.13); border-color: var(--accent2); --win-glow: rgba(255,111,156,0.13); }
+  @keyframes pulse-win {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+  .cell .mark-anim { display: inline-block; animation: pop-in 0.18s cubic-bezier(.34,1.56,.64,1) forwards; }
+  @keyframes pop-in {
+    from { transform: scale(0.3); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  /* RESULT OVERLAY */
+  .result-overlay {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    min-height: 36px;
+  }
+  .result-msg {
+    font-size: 1.4rem;
+    font-weight: 800;
+    display: inline-block;
+    animation: slide-in 0.3s ease;
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* CONTROLS */
+  .controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    letter-spacing: 0.5px;
+  }
+  .btn:hover { background: var(--surface2); border-color: #3a3a5a; }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.15); }
+  .btn.danger { border-color: #ff4466; color: #ff4466; }
+  .btn.danger:hover { background: rgba(255,68,102,0.1); }
+
+  /* SETTINGS PANEL */
+  .settings-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+  .settings-panel.open { display: block; animation: fade-in 0.2s ease; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .settings-title { font-size: 0.7rem; font-family: 'Space Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1rem; }
+  .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; }
+  .setting-group { display: flex; flex-direction: column; gap: 8px; }
+  .setting-group label { font-size: 0.78rem; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* Toggle switch */
+  .toggle-row { display: flex; align-items: center; gap: 10px; }
+  .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--border);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: left 0.2s;
+    pointer-events: none;
+  }
+  .toggle input:checked ~ .toggle-thumb { left: 23px; }
+  .toggle-label { font-size: 0.85rem; color: var(--text); }
+
+  /* Select */
+  .fancy-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 7px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    width: 100%;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666688' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+  }
+  .fancy-select option { background: #1c1c26; }
+
+  /* Input */
+  .fancy-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 7px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    width: 100%;
+    outline: none;
+  }
+  .fancy-input:focus { border-color: var(--accent); }
+
+  /* Symbol picker */
+  .sym-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sym-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .sym-btn:hover { background: var(--surface); }
+  .sym-btn.selected { border-color: var(--accent); background: rgba(124,111,255,0.15); }
+  .sym-btn.selected-o { border-color: var(--accent2); background: rgba(255,111,156,0.15); }
+
+  /* History log */
+  .history-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.2rem; }
+  .history-title { font-size: 0.7rem; font-family: 'Space Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 0.8rem; }
+  .history-list { max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .history-item {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface2);
+    display: flex; justify-content: space-between;
+  }
+  .history-item .hi-result { font-weight: 700; }
+  .history-item .hi-x { color: var(--x-color); }
+  .history-item .hi-o { color: var(--o-color); }
+  .history-item .hi-d { color: var(--muted); }
+
+  /* AI thinking indicator */
+  .thinking { display: none; text-align: center; font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--accent2); margin-bottom: 8px; }
+  .thinking.show { display: block; }
+  .dot { animation: blink 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100% { opacity: 0.2; } 40% { opacity: 1; } }
+
+  /* Undo highlight */
+  .cell.undo-flash { animation: undo-flash 0.4s ease; }
+  @keyframes undo-flash { 0% { background: rgba(255,111,156,0.2); } 100% { background: var(--surface); } }
+
+  /* Settings toggle btn active */
+  .btn.settings-open { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <h1>TIC-TAC-TOE</h1>
+    <p>// advanced edition</p>
+  </div>
+
+  <div class="scoreboard">
+    <div class="score-card x-card" id="x-card">
+      <div class="player-sym" id="sym-x-display">X</div>
+      <div class="player-name" id="name-x-display">PLAYER X</div>
+      <div class="score-num" id="score-x">0</div>
+    </div>
+    <div class="draw-card">
+      <div class="draw-label">DRAWS</div>
+      <div class="draw-num" id="score-d">0</div>
+    </div>
+    <div class="score-card o-card" id="o-card">
+      <div class="player-sym" id="sym-o-display">O</div>
+      <div class="player-name" id="name-o-display">PLAYER O</div>
+      <div class="score-num" id="score-o">0</div>
+    </div>
+  </div>
+
+  <div class="turn-banner" id="turn-banner">X's turn</div>
+  <div class="thinking" id="thinking"><span class="dot">●</span><span class="dot">●</span><span class="dot">●</span> AI is thinking</div>
+  <div class="result-overlay" id="result-overlay"></div>
+
+  <div class="board-wrap"><div class="board" id="board"></div></div>
+
+  <div class="controls">
+    <button class="btn primary" onclick="newGame()">▶ New Game</button>
+    <button class="btn" onclick="undoMove()">↩ Undo</button>
+    <button class="btn settings-btn" onclick="toggleSettings()">⚙ Settings</button>
+    <button class="btn danger" onclick="resetAll()">✕ Reset All</button>
+  </div>
+
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-title">// Game Settings</div>
+    <div class="settings-grid">
+
+      <div class="setting-group">
+        <label>GAME MODE</label>
+        <select class="fancy-select" id="mode-select" onchange="applySettings()">
+          <option value="2p">2 Players (PvP)</option>
+          <option value="ai-easy">vs AI — Easy</option>
+          <option value="ai-medium">vs AI — Medium</option>
+          <option value="ai-hard">vs AI — Hard (Minimax)</option>
+          <option value="ai-ai">AI vs AI (watch)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>AI PLAYS AS</label>
+        <select class="fancy-select" id="ai-side" onchange="applySettings()">
+          <option value="O">O (second)</option>
+          <option value="X">X (first)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>PLAYER X NAME</label>
+        <input class="fancy-input" id="name-x" value="Player X" oninput="updateNames()">
+      </div>
+
+      <div class="setting-group">
+        <label>PLAYER O NAME</label>
+        <input class="fancy-input" id="name-o" value="Player O" oninput="updateNames()">
+      </div>
+
+      <div class="setting-group">
+        <label>X SYMBOL</label>
+        <div class="sym-picker" id="sym-x-picker"></div>
+      </div>
+
+      <div class="setting-group">
+        <label>O SYMBOL</label>
+        <div class="sym-picker" id="sym-o-picker"></div>
+      </div>
+
+      <div class="setting-group">
+        <label>BOARD THEME</label>
+        <select class="fancy-select" id="theme-select" onchange="applyTheme()">
+          <option value="dark">Dark Neon (default)</option>
+          <option value="midnight">Midnight Blue</option>
+          <option value="forest">Forest Dark</option>
+          <option value="crimson">Crimson</option>
+          <option value="light">Clean Light</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>AI SPEED</label>
+        <select class="fancy-select" id="ai-speed">
+          <option value="300">Normal</option>
+          <option value="800">Slow (dramatic)</option>
+          <option value="100">Fast</option>
+          <option value="0">Instant</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>OPTIONS</label>
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="sound-toggle" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+          <span class="toggle-label">Sound effects</span>
+        </div>
+        <div class="toggle-row" style="margin-top:6px;">
+          <label class="toggle"><input type="checkbox" id="anim-toggle" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+          <span class="toggle-label">Animations</span>
+        </div>
+        <div class="toggle-row" style="margin-top:6px;">
+          <label class="toggle"><input type="checkbox" id="showmove-toggle"><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+          <span class="toggle-label">Highlight last move</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="history-wrap">
+    <div class="history-title">// Match History</div>
+    <div class="history-list" id="history-list"><div style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);padding:4px 8px;">No games yet...</div></div>
+  </div>
+
+</div>
+
+<script>
+const SYMBOLS = ['X','O','★','♦','♠','♥','◆','⬟'];
+let symX = 'X', symO = 'O';
+let nameX = 'Player X', nameO = 'Player O';
+let board = Array(9).fill('');
+let turn = 'X';
+let over = false;
+let scores = {X:0,O:0,D:0};
+let history = [];
+let moveHistory = [];
+let lastMoveIdx = -1;
+const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let gameNum = 0;
+
+function checkWin(b, p) { return WINS.find(c => c.every(i => b[i] === p)) || null; }
+function getMode() { return document.getElementById('mode-select').value; }
+function getAISide() { return document.getElementById('ai-side').value; }
+function getSpeed() { return parseInt(document.getElementById('ai-speed').value); }
+function animsOn() { return document.getElementById('anim-toggle').checked; }
+function soundOn() { return document.getElementById('sound-toggle').checked; }
+function showLastMove() { return document.getElementById('showmove-toggle').checked; }
+
+// Sound synthesis
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx = null;
+function getACtx() { if (!actx) actx = new AudioCtx(); return actx; }
+function playTone(freq, dur, type='sine', vol=0.15) {
+  if (!soundOn()) return;
+  try {
+    const ctx = getACtx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.start(); o.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+function playPlace(isX) { playTone(isX ? 440 : 330, 0.12, 'triangle', 0.12); }
+function playWin() {
+  [523, 659, 784, 1047].forEach((f,i) => setTimeout(() => playTone(f, 0.2, 'sine', 0.12), i*80));
+}
+function playDraw() { playTone(220, 0.4, 'sawtooth', 0.08); }
+function playUndo() { playTone(300, 0.15, 'triangle', 0.1); }
+
+// Symbol pickers
+function buildPickers() {
+  const px = document.getElementById('sym-x-picker');
+  const po = document.getElementById('sym-o-picker');
+  px.innerHTML = ''; po.innerHTML = '';
+  SYMBOLS.forEach(s => {
+    const bx = document.createElement('button');
+    bx.className = 'sym-btn' + (s === symX ? ' selected' : '');
+    bx.textContent = s;
+    bx.onclick = () => { symX = s; buildPickers(); updateSymDisplay(); newGame(); };
+    px.appendChild(bx);
+    const bo = document.createElement('button');
+    bo.className = 'sym-btn' + (s === symO ? ' selected-o' : '');
+    bo.textContent = s;
+    bo.onclick = () => { symO = s; buildPickers(); updateSymDisplay(); newGame(); };
+    po.appendChild(bo);
+  });
+}
+function updateSymDisplay() {
+  document.getElementById('sym-x-display').textContent = symX;
+  document.getElementById('sym-o-display').textContent = symO;
+}
+function updateNames() {
+  nameX = document.getElementById('name-x').value || 'Player X';
+  nameO = document.getElementById('name-o').value || 'Player O';
+  document.getElementById('name-x-display').textContent = nameX.toUpperCase();
+  document.getElementById('name-o-display').textContent = nameO.toUpperCase();
+  updateTurnBanner();
+}
+
+// Themes
+const THEMES = {
+  dark: {'--bg':'#0a0a0f','--surface':'#13131a','--surface2':'#1c1c26','--border':'#2a2a3a','--accent':'#7c6fff','--accent2':'#ff6f9c','--x-color':'#7c6fff','--o-color':'#ff6f9c','--text':'#e8e8f0','--muted':'#666688'},
+  midnight: {'--bg':'#05080f','--surface':'#0c1020','--surface2':'#131828','--border':'#1e2840','--accent':'#4a9eff','--accent2':'#a78bfa','--x-color':'#4a9eff','--o-color':'#a78bfa','--text':'#dde4f0','--muted':'#4a5580'},
+  forest: {'--bg':'#080f09','--surface':'#101a12','--surface2':'#172319','--border':'#253027','--accent':'#4ade80','--accent2':'#a3e635','--x-color':'#4ade80','--o-color':'#a3e635','--text':'#e2f0e4','--muted':'#4a6650'},
+  crimson: {'--bg':'#0f0808','--surface':'#1a1010','--surface2':'#221616','--border':'#3a2020','--accent':'#ff5050','--accent2':'#ff9966','--x-color':'#ff5050','--o-color':'#ff9966','--text':'#f0e4e4','--muted':'#885555'},
+  light: {'--bg':'#f5f5fa','--surface':'#ffffff','--surface2':'#eeeef8','--border':'#d0d0e8','--accent':'#6355e8','--accent2':'#e85580','--x-color':'#6355e8','--o-color':'#e85580','--text':'#1a1a2e','--muted':'#8888aa'},
+};
+function applyTheme() {
+  const t = THEMES[document.getElementById('theme-select').value];
+  Object.entries(t).forEach(([k,v]) => document.documentElement.style.setProperty(k,v));
+}
+
+function applySettings() { newGame(); }
+
+function toggleSettings() {
+  const p = document.getElementById('settings-panel');
+  const btn = document.querySelector('.settings-btn');
+  const open = p.classList.toggle('open');
+  btn.classList.toggle('settings-open', open);
+}
+
+// MINIMAX
+function minimax(b, isMax, alpha, beta, depth) {
+  const wx = checkWin(b,'X'), wo = checkWin(b,'O');
+  if (wx) return 10 - depth;
+  if (wo) return depth - 10;
+  if (!b.includes('')) return 0;
+  let best = isMax ? -Infinity : Infinity;
+  for (let i = 0; i < 9; i++) {
+    if (!b[i]) {
+      b[i] = isMax ? 'X' : 'O';
+      const s = minimax(b, !isMax, alpha, beta, depth+1);
+      b[i] = '';
+      if (isMax) { best = Math.max(best,s); alpha = Math.max(alpha,best); }
+      else { best = Math.min(best,s); beta = Math.min(beta,best); }
+      if (beta <= alpha) break;
+    }
+  }
+  return best;
+}
+function bestMoveHard(b, aiSym, humanSym) {
+  const isMaxAI = aiSym === 'X';
+  let best = isMaxAI ? -Infinity : Infinity;
+  let move = -1;
+  for (let i = 0; i < 9; i++) {
+    if (!b[i]) {
+      b[i] = aiSym;
+      const s = minimax([...b], !isMaxAI, -Infinity, Infinity, 0);
+      b[i] = '';
+      if (isMaxAI ? s > best : s < best) { best = s; move = i; }
+    }
+  }
+  return move;
+}
+function bestMoveEasy(b) {
+  const empty = b.map((v,i)=>v?-1:i).filter(i=>i>=0);
+  return empty[Math.floor(Math.random()*empty.length)];
+}
+function bestMoveMedium(b, aiSym, humanSym) {
+  if (Math.random() < 0.45) return bestMoveEasy(b);
+  return bestMoveHard(b, aiSym, humanSym);
+}
+function getAIMove(b, aiSym, humanSym) {
+  const m = getMode();
+  if (m === 'ai-easy') return bestMoveEasy(b);
+  if (m === 'ai-medium') return bestMoveMedium(b, aiSym, humanSym);
+  return bestMoveHard(b, aiSym, humanSym);
+}
+
+function isAITurn() {
+  const m = getMode();
+  if (m === '2p') return false;
+  if (m === 'ai-ai') return true;
+  return turn === getAISide();
+}
+
+function render(winCombo) {
+  const bd = document.getElementById('board');
+  bd.innerHTML = '';
+  board.forEach((v,i) => {
+    const c = document.createElement('div');
+    c.className = 'cell' + (v ? (v==='X' ? ' x-mark' : ' o-mark') : '')
+      + ((v || over) ? ' taken' : '')
+      + (over && !winCombo ? ' disabled' : '')
+      + (winCombo && winCombo.includes(i) ? (v==='X' ? ' winner' : ' winner o-win') : '')
+      + (showLastMove() && i === lastMoveIdx && !winCombo ? ' ' : '');
+    if (showLastMove() && i === lastMoveIdx && !winCombo && v) {
+      c.style.borderColor = v === 'X' ? 'var(--x-color)' : 'var(--o-color)';
+    }
+    if (v) {
+      const span = document.createElement('span');
+      span.className = animsOn() ? 'mark-anim' : '';
+      span.textContent = v === 'X' ? symX : symO;
+      c.appendChild(span);
+    }
+    if (!v && !over) c.onclick = () => playerClick(i);
+    bd.appendChild(c);
+  });
+  updateScores();
+  updateTurnBanner();
+  updateCardHighlight();
+}
+
+function updateScores() {
+  document.getElementById('score-x').textContent = scores.X;
+  document.getElementById('score-o').textContent = scores.O;
+  document.getElementById('score-d').textContent = scores.D;
+}
+
+function updateTurnBanner() {
+  if (over) { document.getElementById('turn-banner').innerHTML = ''; return; }
+  const n = turn === 'X' ? nameX : nameO;
+  const cls = turn === 'X' ? 'tx' : 'to';
+  document.getElementById('turn-banner').innerHTML = `<span class="${cls}">${n}</span>'s turn`;
+}
+
+function updateCardHighlight() {
+  const xc = document.getElementById('x-card');
+  const oc = document.getElementById('o-card');
+  xc.classList.remove('active-turn','o-active');
+  oc.classList.remove('active-turn','o-active');
+  if (!over) {
+    if (turn === 'X') xc.classList.add('active-turn');
+    else { oc.classList.add('active-turn','o-active'); }
+  }
+}
+
+function playerClick(i) {
+  if (over || board[i] || isAITurn()) return;
+  doMove(i);
+}
+
+function doMove(i) {
+  if (over || board[i]) return;
+  board[i] = turn;
+  moveHistory.push({board:[...board], turn, idx:i});
+  lastMoveIdx = i;
+  playPlace(turn==='X');
+  const wc = checkWin(board, turn);
+  render(wc);
+  if (wc) { endGame(turn, wc); return; }
+  if (!board.includes('')) { endGame(null, null); return; }
+  turn = turn === 'X' ? 'O' : 'X';
+  render(null);
+  scheduleAI();
+}
+
+function scheduleAI() {
+  if (!isAITurn() || over) return;
+  const speed = getSpeed();
+  document.getElementById('thinking').classList.add('show');
+  setTimeout(() => {
+    document.getElementById('thinking').classList.remove('show');
+    if (over) return;
+    const aiSym = getMode() === 'ai-ai' ? turn : getAISide();
+    const humanSym = aiSym === 'X' ? 'O' : 'X';
+    const m = getAIMove([...board], aiSym, humanSym);
+    if (m !== -1 && m !== undefined) doMove(m);
+  }, Math.max(speed, 50));
+}
+
+function endGame(winner, wc) {
+  over = true;
+  document.getElementById('thinking').classList.remove('show');
+  if (winner) {
+    scores[winner]++;
+    const wn = winner === 'X' ? nameX : nameO;
+    const cls = winner === 'X' ? '#7c6fff' : '#ff6f9c';
+    showResult(`<span style="color:${cls}">${wn} wins!</span>`);
+    playWin();
+    addHistory(winner, wn);
+  } else {
+    scores.D++;
+    showResult(`<span style="color:var(--muted)">It's a draw!</span>`);
+    playDraw();
+    addHistory('D', null);
+  }
+  render(wc);
+  gameNum++;
+}
+
+function showResult(html) {
+  const el = document.getElementById('result-overlay');
+  el.innerHTML = `<span class="result-msg">${html}</span>`;
+}
+
+function addHistory(result, winnerName) {
+  const list = document.getElementById('history-list');
+  if (list.children.length === 1 && list.children[0].style.color) list.innerHTML = '';
+  const d = new Date();
+  const time = d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  let rText, rClass;
+  if (result === 'D') { rText = 'DRAW'; rClass = 'hi-d'; }
+  else if (result === 'X') { rText = (nameX + ' (X)').toUpperCase(); rClass = 'hi-x'; }
+  else { rText = (nameO + ' (O)').toUpperCase(); rClass = 'hi-o'; }
+  item.innerHTML = `<span>Game #${gameNum+1}</span><span class="hi-result ${rClass}">${rText}</span><span>${time}</span>`;
+  list.insertBefore(item, list.firstChild);
+}
+
+function newGame() {
+  board = Array(9).fill(''); turn = 'X'; over = false; lastMoveIdx = -1; moveHistory = [];
+  document.getElementById('result-overlay').innerHTML = '';
+  document.getElementById('thinking').classList.remove('show');
+  updateNames(); render(null);
+  if (isAITurn()) scheduleAI();
+}
+
+function undoMove() {
+  if (moveHistory.length === 0) return;
+  const last = moveHistory.pop();
+  board = [...last.board]; board[last.idx] = '';
+  turn = last.turn; over = false; lastMoveIdx = moveHistory.length ? moveHistory[moveHistory.length-1].idx : -1;
+  document.getElementById('result-overlay').innerHTML = '';
+  document.getElementById('thinking').classList.remove('show');
+  playUndo();
+  render(null);
+  const cells = document.querySelectorAll('.cell');
+  if (cells[last.idx]) cells[last.idx].classList.add('undo-flash');
+}
+
+function resetAll() {
+  scores = {X:0,O:0,D:0}; gameNum = 0;
+  document.getElementById('history-list').innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:var(--muted);padding:4px 8px;">No games yet...</div>';
+  newGame();
+}
+
+// Init
+buildPickers();
+updateNames();
+newGame();
+</script>
+</body>
+</html>
